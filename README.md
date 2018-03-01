@@ -19,14 +19,13 @@ There are 2 types of Object Storage bucket.
 
 ### /new
 #### Sample input
-'''json
-{
-  "name": "Display Name For Poll",
-  "description": "A bit more information about your poll.",
-  "options": ["List", "Of", "Candidates", "To", "Put", "On", "Ballot", "Paper"],
-  "until": "2018-03-06"
-}
-'''
+    {
+      "name": "Display Name For Poll",
+      "description": "A bit more information about your poll.",
+      "options": ["List", "Of", "Candidates", "To", "Put", "On", "Ballot", "Paper"],
+      "until": "2018-03-06"
+    }
+   
 #### Overview
   * Creates a new Object Storage bucket to hold votes and ballot paper.
   * Create the ballot paper HTML and write it to the poll bucket.
