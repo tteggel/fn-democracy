@@ -1,7 +1,7 @@
 # Fn Democracy
 Create, run and report on a simple poll. An experimental app for [Fn](http://fnproject.io) and OCI.
 
-## Principals
+## Principles
   * Minimal data collection. Make it as difficult as possible to de-anonymise votes.
   * Results only visible after poll closes. No anchoring.
 
