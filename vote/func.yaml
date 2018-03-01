@@ -1,4 +1,4 @@
 name: vote
-version: 0.0.71
+version: 0.0.96
 runtime: docker
 format: default

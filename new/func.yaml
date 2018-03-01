@@ -1,7 +1,8 @@
 name: new
-version: 0.0.72
+version: 0.0.81
 runtime: docker
 format: default
 config:
   COMPARTMENT_ID: ocid1.compartment.oc1..aaaaaaaair52lxrna4lgquxmuzbcqegey7njbu64chcshywvw7pwrx6e7xsa
   OCI_REGION_BASE_URL: https://objectstorage.us-ashburn-1.oraclecloud.com
+  RESULTS_BUCKET: fn-democracy-results

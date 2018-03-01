@@ -1,10 +1,11 @@
 <html>
-  <h1>Options</h1>
+  <h1>{{name}}</h1>
+  <p>{{description}}</p>
   <ul>
     {% for option in options %}
-    <li><a href="vote?r={{par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
+    <li><a href="{{vote_url}}?v={{vote_par | urlencode}}&j={{json_par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
     {% endfor %}
   </ul>
- <h1>Expiry</h1>
-  <p>{{expiry}}</p>
+  <p>Open until: {{expiry}}</p>
+  <p><a href="{{result_url}}">Results will be available here once poll is closed</a>.<p>
 </html>
