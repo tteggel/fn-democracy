@@ -1,0 +1,10 @@
+<html>
+  <h1>Options</h1>
+  <ul>
+    {% for option in options %}
+    <li><a href="vote?r={{par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
+    {% endfor %}
+  </ul>
+ <h1>Expiry</h1>
+  <p>{{expiry}}</p>
+</html>
