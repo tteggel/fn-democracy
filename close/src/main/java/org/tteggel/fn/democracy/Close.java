@@ -15,23 +15,40 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.model.ListObjects;
 import com.oracle.bmc.objectstorage.requests.*;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import freemarker.template.TemplateExceptionHandler;
 import org.tteggel.fn.democracy.messages.ObjectSummary;
 import org.tteggel.fn.democracy.messages.PreAuthenticatedRequest;
 import org.tteggel.fn.democracy.messages.VoteTally;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.util.*;
 
 public class Close implements Serializable {
 
     private static final String POLL_NOT_CLOSED_ERROR = "There are still Pre-Authenticated Requests set for this bucket which means that the poll is still open and cannot be counted yet.";
     private String namespaceName;
+    private String resultsBucket;
 
     public Close(RuntimeContext ctx) throws IOException {
         namespaceName = objectStorage().getNamespace(
                 GetNamespaceRequest.builder().build()).getValue();
+
+
+
+        resultsBucket = ctx.getConfigurationByKey("RESULTS_BUCKET")
+                .orElseThrow(() -> new IllegalArgumentException("Config RESULTS_BUCKET must be defined."));
+    }
+
+    private Configuration templateConfig() {
+        Configuration templateConfig = new Configuration(Configuration.VERSION_2_3_27);
+        templateConfig.setDefaultEncoding("UTF-8");
+        templateConfig.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
+        templateConfig.setLogTemplateExceptions(false);
+        templateConfig.setWrapUncheckedExceptions(true);
+        templateConfig.setClassForTemplateLoading(Close.class, "/");
+        return templateConfig;
     }
 
     private ObjectStorageClient objectStorage() {
@@ -187,14 +204,50 @@ public class Close implements Serializable {
     }
 
     private static VoteTally combineTally(VoteTally a, VoteTally b) {
-        VoteTally result = a;
-        b.forEach((k, v) -> result.merge(k, v, Integer::sum));
-        return result;
+        b.forEach((k, v) -> a.merge(k, v, Integer::sum));
+        return a;
     }
 
-    private FlowFuture<Void> writeResults(String pollId, VoteTally tally) {
+    private FlowFuture<Void> writeResults(String pollId, VoteTally tally)  {
         System.err.println("Writing results for poll: " + pollId);
         System.err.println(tally);
+
+        Template template;
+        try {
+            template = templateConfig().getTemplate("results.html");
+        } catch (IOException e) {
+            System.err.println(e);
+            return Flows.currentFlow().failedFuture(e);
+        }
+
+        Map<String, List> data = new HashMap<>();
+        List<Map<String, String>> voteList = new ArrayList<>();
+        tally.forEach((k, v) -> {
+            Map<String, String> entry = new HashMap<>();
+            entry.put("option", k);
+            entry.put("tally", v.toString());
+            voteList.add(entry);
+        });
+        data.put("results", voteList);
+
+        try {
+            PipedInputStream inStream = new PipedInputStream();
+            PipedOutputStream outStream = new PipedOutputStream(inStream);
+            OutputStreamWriter writer = new OutputStreamWriter(outStream);
+            PutObjectRequest por = PutObjectRequest.builder()
+                    .namespaceName(namespaceName)
+                    .bucketName(resultsBucket)
+                    .objectName(pollId + ".html")
+                    .putObjectBody(inStream)
+                    .build();
+            template.process(data, writer);
+            writer.flush(); writer.close();
+            objectStorage().putObject(por);
+        } catch (Exception e) {
+            System.err.println(e);
+            return Flows.currentFlow().failedFuture(e);
+        }
+
         return Flows.currentFlow().completedValue(null);
     }
 

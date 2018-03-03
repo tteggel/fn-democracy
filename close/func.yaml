@@ -1,5 +1,5 @@
 name: vote
-version: 0.0.109
+version: 0.0.129
 runtime: java
 cmd: org.tteggel.fn.democracy.Close::main
 build_image: fnproject/fn-java-fdk-build:jdk9-1.0.56
@@ -7,6 +7,10 @@ run_image: fnproject/fn-java-fdk:jdk9-1.0.56
 memory: 512
 format: http
 timeout: 120
+config:
+  COMPARTMENT_ID: ocid1.compartment.oc1..aaaaaaaair52lxrna4lgquxmuzbcqegey7njbu64chcshywvw7pwrx6e7xsa
+  OCI_REGION_BASE_URL: https://objectstorage.us-ashburn-1.oraclecloud.com
+  RESULTS_BUCKET: fn-democracy-results
 headers:
   access-control-allow-origin:
   - '*'
