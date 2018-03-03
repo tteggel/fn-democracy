@@ -46,7 +46,7 @@ def parse_input(object_storage):
     data = {
         "poll_name": data["name"],
         "poll_id": str(poll_id),
-        "bucket_name": "{0}-{1}".format(data["name"], poll_id),
+        "bucket_name": "{1}".format(data["name"], poll_id),
         "poll_options": data["options"] if "options" in data else ["Yes", "No"],
         "poll_expiry": rfc3339.format(poll_expiry, utc=True, use_system_timezone=False),
         "poll_description": data["description"] if "description" in data else "",
@@ -57,9 +57,9 @@ def parse_input(object_storage):
         "namespace_name": object_storage.get_namespace().data
     }
 
-    data["result_url"] = "{0}/n/{1}/b/{2}/o/{3}-{4}.html".format(
-        data["oci_url"], data["namespace_name"], data["results_bucket"],
-        data["poll_name"], data["poll_id"])
+    data["result_url"] = "{0}/n/{1}/b/{2}/o/{3}.html".format(
+        data["oci_url"], data["namespace_name"],
+        data["results_bucket"], data["poll_id"])
 
     return data
 
@@ -106,7 +106,7 @@ def create_ballot_json(object_storage, data):
 
 def create_ballot_par(object_storage, object_name, data):
     ballot_par_details = CreatePreauthenticatedRequestDetails(
-        name="Ballot {0}".format(data["bucket_name"]),
+        name="Ballot {0} {1}".format(object_name, data["bucket_name"]),
         object_name=object_name,
         access_type="ObjectRead",
         time_expires=data["poll_expiry"])
@@ -122,7 +122,7 @@ def create_result_html(object_storage, env, data, ballot_par):
 
     object_storage.put_object(
         data["namespace_name"], data["results_bucket"],
-        "{0}-{1}.html".format(data["poll_name"], data["poll_id"]), result_html,
+        "{0}.html".format(data["poll_id"]), result_html,
         content_type="text/html")
 
 def eprint(*args, **kwargs):
