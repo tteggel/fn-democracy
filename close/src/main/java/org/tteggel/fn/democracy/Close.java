@@ -46,14 +46,14 @@ public class Close implements Serializable {
         Supplier<InputStream> privateKeySupplier =
                 Suppliers.ofInstance( getClass().getResourceAsStream("/oci_api_key.pem"));
 
-        AuthenticationDetailsProvider provider = SimpleAuthenticationDetailsProvider.builder()
+        AuthenticationDetailsProvider authenticationDetailsProvider = SimpleAuthenticationDetailsProvider.builder()
                 .tenantId(config.get("tenancy"))
                 .userId(config.get("user"))
                 .fingerprint(config.get("fingerprint"))
                 .privateKeySupplier(privateKeySupplier)
                 .build();
 
-        ObjectStorageClient result = new ObjectStorageClient(provider);
+        ObjectStorageClient result = new ObjectStorageClient(authenticationDetailsProvider);
         result.setRegion(Region.US_ASHBURN_1);
 
         return result;
@@ -140,8 +140,8 @@ public class Close implements Serializable {
     private FlowFuture<VoteTally> getVoteTally(String pollId, List<ObjectSummary> ballotList) {
         Integer batchSize = 10;
         if (ballotList.size() <= batchSize) {
-            return Flows.currentFlow().supply(
-                    () -> getVotes(pollId, ballotList)).thenApply(Close::computeTally);
+            return Flows.currentFlow().supply(() -> getVotes(pollId, ballotList))
+                    .thenApply(Close::computeTally);
         } else {
             List<ObjectSummary> head = new ArrayList<>(ballotList.subList(0, batchSize));
             List<ObjectSummary> tail = new ArrayList<>(ballotList.subList(batchSize, ballotList.size()));
@@ -177,7 +177,6 @@ public class Close implements Serializable {
     }
 
     private static VoteTally computeTally(List<String> getVoteList) {
-
             VoteTally tally = new VoteTally();
 
             getVoteList.forEach((vote) ->
