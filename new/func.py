@@ -9,6 +9,7 @@ from oci.object_storage.models import CreateBucketDetails, CreatePreauthenticate
 from oci.exceptions import ServiceError
 
 from datetime import timedelta, datetime
+import humanfriendly
 import rfc3339
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -41,7 +42,9 @@ def main():
 def parse_input(object_storage):
     data  = json.load(sys.stdin)
     poll_id = uuid.uuid4()
-    poll_expiry = data["until"] if "until" in data else datetime.now() + timedelta(days=1)
+
+    poll_duration = humanfriendly.parse_timespan(data["for"] if "for" in data else "1d")
+    poll_expiry = datetime.now() + timedelta(seconds=poll_duration)
 
     data = {
         "poll_name": data["name"],
@@ -118,6 +121,7 @@ def create_ballot_par(object_storage, object_name, data):
 def create_result_html(object_storage, env, data, ballot_par):
     result_template = env.get_template("result_open.html")
     result_html = result_template.render(
+        poll_id=data["poll_id"],
         ballot_url="{0}{1}".format(data["oci_url"], ballot_par))
 
     object_storage.put_object(

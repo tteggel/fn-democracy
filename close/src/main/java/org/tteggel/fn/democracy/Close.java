@@ -15,14 +15,13 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.model.ListObjects;
 import com.oracle.bmc.objectstorage.requests.*;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
-import freemarker.template.Configuration;
-import freemarker.template.Template;
-import freemarker.template.TemplateExceptionHandler;
+import org.tteggel.fn.democracy.messages.BallotData;
 import org.tteggel.fn.democracy.messages.ObjectSummary;
 import org.tteggel.fn.democracy.messages.PreAuthenticatedRequest;
 import org.tteggel.fn.democracy.messages.VoteTally;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.util.*;
 
 public class Close implements Serializable {
@@ -73,6 +72,7 @@ public class Close implements Serializable {
 
         for (PreAuthenticatedRequest par : pars) {
             if (par.timeExpires.after(now)) {
+                System.err.println(POLL_NOT_CLOSED_ERROR);
                 return f.failedFuture(new IllegalStateException(POLL_NOT_CLOSED_ERROR));
             } else {
                 deletions.add(f.supply(() -> {
@@ -175,47 +175,22 @@ public class Close implements Serializable {
         System.err.println("Writing results for poll: " + pollId);
         System.err.println(tally);
 
-        Template template;
-        try {
-            template = templates().getTemplate("results.html");
-        } catch (IOException e) {
-            return Flows.currentFlow().failedFuture(e);
-        }
-
-        Map<String, List> data = new HashMap<>();
-        List<Map<String, String>> voteList = new ArrayList<>();
-        tally.forEach((k, v) -> {
-            Map<String, String> entry = new HashMap<>();
-            entry.put("option", k);
-            entry.put("tally", v.toString());
-            voteList.add(entry);
+        return Flows.currentFlow().invokeFunction("./results-html", tally).thenAccept(
+                (html) -> {
+            try {
+                PutObjectRequest por = PutObjectRequest.builder()
+                        .namespaceName(namespaceName)
+                        .bucketName(resultsBucket)
+                        .objectName(pollId + ".html")
+                        .contentType("text/html")
+                        .putObjectBody(new ByteArrayInputStream( html.getBodyAsBytes() ))
+                        .build();
+                objectStorage().putObject(por);
+            } catch (Exception e) {
+                e.printStackTrace(System.err);
+            }
         });
-        data.put("results", voteList);
-
-        try {
-
-            PipedInputStream inStream = new PipedInputStream();
-            PipedOutputStream outStream = new PipedOutputStream(inStream);
-            OutputStreamWriter writer = new OutputStreamWriter(outStream);
-            PutObjectRequest por = PutObjectRequest.builder()
-                .namespaceName(namespaceName)
-                .bucketName(resultsBucket)
-                .objectName(pollId + ".html")
-                .contentType("text/html")
-                .putObjectBody(inStream)
-                .build();
-            template.process(data, writer);
-            writer.flush(); writer.close();
-            objectStorage().putObject(por);
-        } catch (Exception e) {
-            return Flows.currentFlow().failedFuture(e);
-        }
-
-        return Flows.currentFlow().completedValue(null);
     }
-
-
-
 
     private FlowFuture<Void> deletePoll(String pollId, String start) {
         System.err.println("Deleting votes and ballot for poll: " + pollId);
@@ -290,15 +265,7 @@ public class Close implements Serializable {
         return result;
     }
 
-    private Configuration templates() {
-        Configuration templateConfig = new Configuration(Configuration.VERSION_2_3_27);
-        templateConfig.setDefaultEncoding("UTF-8");
-        templateConfig.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
-        templateConfig.setLogTemplateExceptions(false);
-        templateConfig.setWrapUncheckedExceptions(true);
-        templateConfig.setClassForTemplateLoading(Close.class, "/");
-        return templateConfig;
-    }
+
 
     private String streamToString(InputStream stream) {
         Scanner scanner = new Scanner(stream).useDelimiter("\\A");

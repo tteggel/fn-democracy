@@ -23,7 +23,7 @@ There are 2 types of Object Storage bucket.
       "name": "Display Name For Poll",
       "description": "A bit more information about your poll.",
       "options": ["List", "Of", "Candidates", "To", "Put", "On", "Ballot", "Paper"],
-      "until": "2018-03-06"
+      "for": "1d"
     }
    
 #### Overview
@@ -43,7 +43,7 @@ There are 2 types of Object Storage bucket.
   * Confirm vote by reading back from poll bucket.
   * Write success message.
 
-### /close (TODO)
+### /close
 #### Overview
   * Exit if there are still PARs on the vote bucket.
   * Destructive read of all vote files from vote bucket and aggregate a count per option.
@@ -57,9 +57,7 @@ There are 2 types of Object Storage bucket.
   * `fn deploy --all --local`
 
 ## TODO
-  * Poll closing and counting
   * Pretty the HTML
-  * /close
   * HTML form for /new and /close
   * Doc or terraform for OCI setup
   

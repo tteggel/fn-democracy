@@ -1,14 +1,21 @@
 <!DOCTYPE html>
 <html lang="en" >
 <head>
-    <title>Fn Democracy Ballot</title>
+    <title>Fn Democracy Results</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 </head>
 
 <body>
     <div class="container-fluid">
-    <h1>Vote Successful - Thank You</h1>
-    <p>Vote successfully recorded and validated. Please use the back button in your browser.</p>
+        <h1>Results</h1>
+        <table class="table">
+            <thead><tr><th scope="col">Option</th><th scope="col"># Votes</th></tr></thead>
+            <tbody>
+            <#list results as result>
+                <tr><td>${result.option}</td><td>${result.tally}</td></tr>
+            </#list>
+            </tbody>
+        </table>
     </div>
 </body>
