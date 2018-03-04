@@ -35,45 +35,8 @@ public class Close implements Serializable {
         namespaceName = objectStorage().getNamespace(
                 GetNamespaceRequest.builder().build()).getValue();
 
-
-
         resultsBucket = ctx.getConfigurationByKey("RESULTS_BUCKET")
                 .orElseThrow(() -> new IllegalArgumentException("Config RESULTS_BUCKET must be defined."));
-    }
-
-    private Configuration templateConfig() {
-        Configuration templateConfig = new Configuration(Configuration.VERSION_2_3_27);
-        templateConfig.setDefaultEncoding("UTF-8");
-        templateConfig.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
-        templateConfig.setLogTemplateExceptions(false);
-        templateConfig.setWrapUncheckedExceptions(true);
-        templateConfig.setClassForTemplateLoading(Close.class, "/");
-        return templateConfig;
-    }
-
-    private ObjectStorageClient objectStorage() {
-        InputStream configStream = getClass().getResourceAsStream("/config");
-        ConfigFileReader.ConfigFile config = null;
-        try {
-            config = ConfigFileReader.parse(configStream, "DEFAULT");
-        } catch (IOException e) {
-            System.err.println(e.getStackTrace());
-        }
-
-        Supplier<InputStream> privateKeySupplier =
-                Suppliers.ofInstance( getClass().getResourceAsStream("/oci_api_key.pem"));
-
-        AuthenticationDetailsProvider authenticationDetailsProvider = SimpleAuthenticationDetailsProvider.builder()
-                .tenantId(config.get("tenancy"))
-                .userId(config.get("user"))
-                .fingerprint(config.get("fingerprint"))
-                .privateKeySupplier(privateKeySupplier)
-                .build();
-
-        ObjectStorageClient result = new ObjectStorageClient(authenticationDetailsProvider);
-        result.setRegion(Region.US_ASHBURN_1);
-
-        return result;
     }
 
     public String main(String input, InputEvent rawEvent) {
@@ -84,23 +47,23 @@ public class Close implements Serializable {
         .thenCompose((pars) -> deletePars(pollId, pars))
         .thenCompose((ignored) -> getTally(pollId, null))
         .thenCompose((tally) -> writeResults(pollId, tally))
-        .whenComplete((i, err) -> deletePoll(pollId));
+        .thenCompose((ignored) -> deletePoll(pollId, null));
 
         return input;
     }
 
     private List<PreAuthenticatedRequest> listPars(String pollId) {
 
-            ListPreauthenticatedRequestsRequest lprr =
-                    ListPreauthenticatedRequestsRequest.builder()
-                    .namespaceName(namespaceName)
-                    .bucketName(pollId)
-                    .build();
+        ListPreauthenticatedRequestsRequest lprr =
+            ListPreauthenticatedRequestsRequest.builder()
+            .namespaceName(namespaceName)
+            .bucketName(pollId)
+            .build();
 
-            return PreAuthenticatedRequest.buildList(
-                    objectStorage()
-                            .listPreauthenticatedRequests(lprr)
-                            .getItems());
+        return PreAuthenticatedRequest.buildList(
+                objectStorage()
+                    .listPreauthenticatedRequests(lprr)
+                    .getItems());
     }
 
     private FlowFuture<Void> deletePars(String pollId, List<PreAuthenticatedRequest> pars) {
@@ -115,11 +78,11 @@ public class Close implements Serializable {
                 deletions.add(f.supply(() -> {
                     String parId = par.id;
                     DeletePreauthenticatedRequestRequest dprr =
-                            DeletePreauthenticatedRequestRequest.builder()
-                            .namespaceName(namespaceName)
-                            .bucketName(pollId)
-                            .parId(parId)
-                            .build();
+                        DeletePreauthenticatedRequestRequest.builder()
+                        .namespaceName(namespaceName)
+                        .bucketName(pollId)
+                        .parId(parId)
+                        .build();
 
                     objectStorage().deletePreauthenticatedRequest(dprr);
                 }));
@@ -135,10 +98,10 @@ public class Close implements Serializable {
 
     private FlowFuture<VoteTally> getTally(String pollId, String start) {
         ListObjectsRequest lor = ListObjectsRequest.builder()
-                .namespaceName(namespaceName)
-                .bucketName(pollId)
-                .start(start)
-                .build();
+            .namespaceName(namespaceName)
+            .bucketName(pollId)
+            .start(start)
+            .build();
 
         ListObjects listObjects = objectStorage().listObjects(lor).getListObjects();
         List<ObjectSummary> objectSummaries = ObjectSummary.buildList(listObjects);
@@ -180,10 +143,10 @@ public class Close implements Serializable {
 
     private String getVote(String pollId, ObjectSummary s) {
         GetObjectRequest gor = GetObjectRequest.builder()
-                .namespaceName(namespaceName)
-                .bucketName(pollId)
-                .objectName(s.name)
-                .build();
+            .namespaceName(namespaceName)
+            .bucketName(pollId)
+            .objectName(s.name)
+            .build();
 
         GetObjectResponse object = objectStorage().getObject(gor);
 
@@ -214,9 +177,8 @@ public class Close implements Serializable {
 
         Template template;
         try {
-            template = templateConfig().getTemplate("results.html");
+            template = templates().getTemplate("results.html");
         } catch (IOException e) {
-            System.err.println(e);
             return Flows.currentFlow().failedFuture(e);
         }
 
@@ -231,20 +193,21 @@ public class Close implements Serializable {
         data.put("results", voteList);
 
         try {
+
             PipedInputStream inStream = new PipedInputStream();
             PipedOutputStream outStream = new PipedOutputStream(inStream);
             OutputStreamWriter writer = new OutputStreamWriter(outStream);
             PutObjectRequest por = PutObjectRequest.builder()
-                    .namespaceName(namespaceName)
-                    .bucketName(resultsBucket)
-                    .objectName(pollId + ".html")
-                    .putObjectBody(inStream)
-                    .build();
+                .namespaceName(namespaceName)
+                .bucketName(resultsBucket)
+                .objectName(pollId + ".html")
+                .contentType("text/html")
+                .putObjectBody(inStream)
+                .build();
             template.process(data, writer);
             writer.flush(); writer.close();
             objectStorage().putObject(por);
         } catch (Exception e) {
-            System.err.println(e);
             return Flows.currentFlow().failedFuture(e);
         }
 
@@ -252,9 +215,89 @@ public class Close implements Serializable {
     }
 
 
-    private void deletePoll(String pollId) {
-        System.err.println("Deleting votes and ballot for poll: " + pollId);
 
+
+    private FlowFuture<Void> deletePoll(String pollId, String start) {
+        System.err.println("Deleting votes and ballot for poll: " + pollId);
+        ListObjectsRequest lor = ListObjectsRequest.builder()
+            .namespaceName(namespaceName)
+            .bucketName(pollId)
+            .start(start)
+            .build();
+
+        ListObjects listObjects = objectStorage().listObjects(lor).getListObjects();
+        FlowFuture<Void> deletes = deleteObjects(pollId, ObjectSummary.buildList(listObjects));
+
+        String nextStartWith = listObjects.getNextStartWith();
+        if(nextStartWith == null) {
+            return deletes.thenRun(() -> deleteBucket(pollId));
+        } else {
+            return deletePoll(pollId, nextStartWith).thenCompose((ignored) -> deletes);
+        }
+    }
+
+    private FlowFuture<Void> deleteObjects(String pollId, List<ObjectSummary> objects) {
+        Integer batchSize = 10;
+        if (objects.size() <= batchSize) {
+            return Flows.currentFlow().supply(() -> {
+                for(ObjectSummary s: objects) {
+                    DeleteObjectRequest dor = DeleteObjectRequest.builder()
+                            .namespaceName(namespaceName)
+                            .bucketName(pollId)
+                            .objectName(s.name)
+                            .build();
+                    objectStorage().deleteObject(dor);
+                }
+            });
+        } else {
+            List<ObjectSummary> head = new ArrayList<>(objects.subList(0, batchSize));
+            List<ObjectSummary> tail = new ArrayList<>(objects.subList(batchSize, objects.size()));
+            FlowFuture<Void> tailFuture = deleteObjects(pollId, tail);
+            return deleteObjects(pollId, head).thenCompose((ignored) -> tailFuture);
+        }
+    }
+
+    private void deleteBucket(String pollId) {
+        DeleteBucketRequest dbr = DeleteBucketRequest.builder()
+                .namespaceName(namespaceName)
+                .bucketName(pollId)
+                .build();
+        objectStorage().deleteBucket(dbr);
+    }
+
+    private ObjectStorageClient objectStorage() {
+        InputStream configStream = getClass().getResourceAsStream("/config");
+        ConfigFileReader.ConfigFile config = null;
+        try {
+            config = ConfigFileReader.parse(configStream, "DEFAULT");
+        } catch (IOException e) {
+            System.err.println(e.getStackTrace());
+        }
+
+        Supplier<InputStream> privateKeySupplier =
+                Suppliers.ofInstance( getClass().getResourceAsStream("/oci_api_key.pem"));
+
+        AuthenticationDetailsProvider authenticationDetailsProvider = SimpleAuthenticationDetailsProvider.builder()
+                .tenantId(config.get("tenancy"))
+                .userId(config.get("user"))
+                .fingerprint(config.get("fingerprint"))
+                .privateKeySupplier(privateKeySupplier)
+                .build();
+
+        ObjectStorageClient result = new ObjectStorageClient(authenticationDetailsProvider);
+        result.setRegion(Region.US_ASHBURN_1);
+
+        return result;
+    }
+
+    private Configuration templates() {
+        Configuration templateConfig = new Configuration(Configuration.VERSION_2_3_27);
+        templateConfig.setDefaultEncoding("UTF-8");
+        templateConfig.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
+        templateConfig.setLogTemplateExceptions(false);
+        templateConfig.setWrapUncheckedExceptions(true);
+        templateConfig.setClassForTemplateLoading(Close.class, "/");
+        return templateConfig;
     }
 
     private String streamToString(InputStream stream) {

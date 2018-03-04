@@ -1,11 +1,17 @@
-<html>
-  <h1>{{name}}</h1>
-  <p>{{description}}</p>
-  <ul>
-    {% for option in options %}
-    <li><a href="{{vote_url}}?v={{vote_par | urlencode}}&j={{json_par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
-    {% endfor %}
-  </ul>
-  <p>Open until: {{expiry}}</p>
-  <p><a href="{{result_url}}">Results will be available here once poll is closed</a>.<p>
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+    <title>Fn Democracy Ballot</title>
+</head>
+<body>
+    <h1>{{name}}</h1>
+    <p>{{description}}</p>
+    <ul>
+        {% for option in options %}
+        <li><a href="{{vote_url}}?v={{vote_par | urlencode}}&j={{json_par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
+        {% endfor %}
+    </ul>
+    <p>Open until: {{expiry}}</p>
+    <p><a href="{{result_url}}">Results will be available here once poll is closed</a>.</p>
+</body>
 </html>

@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
     <title>Fn Democracy Poll Results</title>
 </head>
 <body>
 <table>
+    <h1>Results</h1>
     <thead><tr><td>Option</td><td>Votes</td></tr></thead>
     <tbody>
         <#list results as result>
-            <tr><td>${result.option}<td>${result.tally} Euros
+            <tr><td>${result.option}</td><td>${result.tally}</td></tr>
         </#list>
     </tbody>
 </table>
