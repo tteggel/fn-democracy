@@ -1,5 +1,5 @@
 name: tteggel/vote
-version: 0.0.141
+version: 0.0.142
 runtime: docker
 format: default
 timeout: 120

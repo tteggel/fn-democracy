@@ -6,17 +6,18 @@ import com.fnproject.fn.api.flow.Flows;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Batch {
+class Batch {
     static <T, U> FlowFuture<T> batchList(List<U> list, Integer batchSize,
-                                          Flows.SerFunction<List<U>, FlowFuture<T>> compute,
-                                          Flows.SerBiFunction<? super T, ? super T, ? extends T> combine) {
+                                          Flows.SerFunction<List<U>, FlowFuture<T>> processBatch,
+                                          Flows.SerBiFunction<? super T, ? super T, ? extends T> combineBatch) {
         if (list.size() <= batchSize) {
-            return compute.apply(list);
+            return processBatch.apply(list);
         } else {
-            List head = new ArrayList<>(list.subList(0, batchSize));
-            List tail = new ArrayList<>(list.subList(batchSize, list.size()));
-            FlowFuture<T> tailFuture = batchList(tail, batchSize, compute, combine);
-            return batchList(head, batchSize, compute, combine).thenCombine(tailFuture, combine);
+            List<U> head = new ArrayList<>(list.subList(0, batchSize));
+            List<U> tail = new ArrayList<>(list.subList(batchSize, list.size()));
+            FlowFuture<T> tailFuture = batchList(tail, batchSize, processBatch, combineBatch);
+            return batchList(head, batchSize, processBatch, combineBatch)
+                    .thenCombine(tailFuture, combineBatch);
         }
     }
 }
