@@ -17,9 +17,9 @@
         {% endfor %}
     </ul>
     <p>Open until: {{expiry}}</p>
-    <h3><a href="{{result_url}}">Results will be available from this link and qrcode once poll is closed</a></h3>
+    <h3>This page is temporary and will vanish once this poll closes. <a href="{{result_url}}">Results will be available from this link and qrcode after poll has been closed</a></h3>
     <p><img src="{{qrcode}}" class="img-fluid" /></p>
-    <p><a href="{{close_url}}?i={{poll_id}}" class="small">{{poll_id}}</a>
+    <p>Click this link to enqueue the close process for this poll (will only succeed after the "Open until:" time above): <a href="{{close_url}}?i={{poll_id}}" class="small">try closing poll {{poll_id}}.</a>
     </div>
 </body>
 </html>

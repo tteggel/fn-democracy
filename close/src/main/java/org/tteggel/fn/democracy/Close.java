@@ -15,13 +15,11 @@ import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.model.ListObjects;
 import com.oracle.bmc.objectstorage.requests.*;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
-import org.tteggel.fn.democracy.messages.BallotData;
 import org.tteggel.fn.democracy.messages.ObjectSummary;
 import org.tteggel.fn.democracy.messages.PreAuthenticatedRequest;
 import org.tteggel.fn.democracy.messages.VoteTally;
 
 import java.io.*;
-import java.nio.charset.Charset;
 import java.util.*;
 
 public class Close implements Serializable {
@@ -118,16 +116,10 @@ public class Close implements Serializable {
     }
 
     private FlowFuture<VoteTally> getVoteTally(String pollId, List<ObjectSummary> ballotList) {
-        Integer batchSize = 10;
-        if (ballotList.size() <= batchSize) {
-            return Flows.currentFlow().supply(() -> getVotes(pollId, ballotList))
-                    .thenApply(Close::computeTally);
-        } else {
-            List<ObjectSummary> head = new ArrayList<>(ballotList.subList(0, batchSize));
-            List<ObjectSummary> tail = new ArrayList<>(ballotList.subList(batchSize, ballotList.size()));
-            FlowFuture<VoteTally> tailFuture = getVoteTally(pollId, tail);
-            return getVoteTally(pollId, head).thenCombine(tailFuture, Close::combineTally);
-        }
+        return Batch.batchList(ballotList,10,
+                (list) -> Flows.currentFlow().supply(() -> getVotes(pollId, list))
+                                             .thenApply(Close::computeTally),
+                Close::combineTally);
     }
 
     private List<String> getVotes(String pollId, List<ObjectSummary> objs) {
@@ -212,23 +204,19 @@ public class Close implements Serializable {
     }
 
     private FlowFuture<Void> deleteObjects(String pollId, List<ObjectSummary> objects) {
-        Integer batchSize = 10;
-        if (objects.size() <= batchSize) {
-            return Flows.currentFlow().supply(() -> {
-                for(ObjectSummary s: objects) {
-                    DeleteObjectRequest dor = DeleteObjectRequest.builder()
-                            .namespaceName(namespaceName)
-                            .bucketName(pollId)
-                            .objectName(s.name)
-                            .build();
-                    objectStorage().deleteObject(dor);
-                }
-            });
-        } else {
-            List<ObjectSummary> head = new ArrayList<>(objects.subList(0, batchSize));
-            List<ObjectSummary> tail = new ArrayList<>(objects.subList(batchSize, objects.size()));
-            FlowFuture<Void> tailFuture = deleteObjects(pollId, tail);
-            return deleteObjects(pollId, head).thenCompose((ignored) -> tailFuture);
+        return Batch.batchList(objects, 10,
+                (list) -> Flows.currentFlow().supply(() -> deleteBatch(pollId, list)),
+                (a, b) -> null);
+    }
+
+    private void deleteBatch(String pollId, List<ObjectSummary> objects) {
+        for (ObjectSummary s : objects) {
+            DeleteObjectRequest dor = DeleteObjectRequest.builder()
+                    .namespaceName(namespaceName)
+                    .bucketName(pollId)
+                    .objectName(s.name)
+                    .build();
+            objectStorage().deleteObject(dor);
         }
     }
 
