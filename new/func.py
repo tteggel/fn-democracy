@@ -1,4 +1,5 @@
-import sys, json, os, uuid
+import sys, json, os, uuid, base64
+from io import BytesIO
 
 from urllib.parse import urlparse
 
@@ -13,6 +14,8 @@ import humanfriendly
 import rfc3339
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+import qrcode
 
 def main():
     config = from_file(file_location="/code/oci/config")
@@ -56,13 +59,16 @@ def parse_input(object_storage):
         "oci_url": os.environ["OCI_REGION_BASE_URL"],
         "compartment_id": os.environ["COMPARTMENT_ID"],
         "results_bucket": os.environ["RESULTS_BUCKET"],
+        "namespace_name": object_storage.get_namespace().data,
         "vote_url": os.environ["FN_REQUEST_URL"].replace("/new", "/vote"),
-        "namespace_name": object_storage.get_namespace().data
+        "close_url": os.environ["FN_REQUEST_URL"].replace("/new", "/close")
     }
 
     data["result_url"] = "{0}/n/{1}/b/{2}/o/{3}.html".format(
         data["oci_url"], data["namespace_name"],
         data["results_bucket"], data["poll_id"])
+
+    data["qrcode"] = create_qrcode(data)
 
     return data
 
@@ -94,6 +100,9 @@ def create_ballot_html(object_storage, env, data, vote_par, json_par):
         name=data["poll_name"],
         vote_url=data["vote_url"],
         result_url=data["result_url"],
+        qrcode=data["qrcode"],
+        poll_id=data["poll_id"],
+        close_url=data["close_url"],
         vote_par="{0}{1}".format(data["oci_url"], vote_par),
         json_par="{0}{1}".format(data["oci_url"], json_par))
 
@@ -128,6 +137,24 @@ def create_result_html(object_storage, env, data, ballot_par):
         data["namespace_name"], data["results_bucket"],
         "{0}.html".format(data["poll_id"]), result_html,
         content_type="text/html")
+
+def create_qrcode(data):
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=20,
+        border=4,
+    )
+    qr.add_data(data["result_url"])
+    qr.make(fit=True)
+    img = qr.make_image()
+    qr_bytes = BytesIO()
+    img.save(qr_bytes, "PNG")
+    contents = qr_bytes.getvalue()
+    qr_bytes.close()
+
+    return "data:image/png;base64,{0}".format(base64.b64encode(contents).decode())
+
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
