@@ -42,9 +42,10 @@ public class Close implements Serializable {
 
         Flows.currentFlow().supply(() -> listPars(pollId))
         .thenCompose((pars) -> deletePars(pollId, pars))
-        .thenCompose((ignored) -> getTally(pollId, null))
+        .thenCompose((ignored) -> getTally(pollId))
         .thenCompose((tally) -> writeResults(pollId, tally))
-        .thenCompose((ignored) -> deletePoll(pollId, null));
+        .thenCompose((ignored) -> deletePoll(pollId))
+        .thenRun(() -> deleteBucket(pollId));
 
         return input;
     }
@@ -94,25 +95,21 @@ public class Close implements Serializable {
         }
     }
 
-    private FlowFuture<VoteTally> getTally(String pollId, String start) {
-        ListObjectsRequest lor = ListObjectsRequest.builder()
-            .namespaceName(namespaceName)
-            .bucketName(pollId)
-            .start(start)
-            .build();
+    private FlowFuture<VoteTally> getTally(String pollId) {
 
-        ListObjects listObjects = objectStorage().listObjects(lor).getListObjects();
-        List<ObjectSummary> objectSummaries = ObjectSummary.buildList(listObjects);
+        return Batch.batchIterable(null,
+                (s) -> {
+                    ListObjectsRequest lor = ListObjectsRequest.builder()
+                            .namespaceName(namespaceName)
+                            .bucketName(pollId)
+                            .start(s)
+                            .build();
 
-        FlowFuture<VoteTally> tally = getVoteTally(pollId, objectSummaries);
-
-        String nextStartWith = listObjects.getNextStartWith();
-        if (nextStartWith == null) {
-            return tally;
-        } else {
-            FlowFuture<VoteTally> nextTallyFuture = getTally(pollId, nextStartWith);
-            return tally.thenCombine(nextTallyFuture, Close::combineTally);
-        }
+                    return objectStorage().listObjects(lor).getListObjects();
+                },
+                ListObjects::getNextStartWith,
+                (o) -> getVoteTally(pollId, ObjectSummary.buildList(o)),
+                Close::combineTally);
     }
 
     private FlowFuture<VoteTally> getVoteTally(String pollId, List<ObjectSummary> ballotList) {
@@ -182,23 +179,22 @@ public class Close implements Serializable {
         });
     }
 
-    private FlowFuture<Void> deletePoll(String pollId, String start) {
+    private FlowFuture<Void> deletePoll(String pollId) {
         System.err.println("Deleting votes and ballot for poll: " + pollId);
-        ListObjectsRequest lor = ListObjectsRequest.builder()
-            .namespaceName(namespaceName)
-            .bucketName(pollId)
-            .start(start)
-            .build();
+        return Batch.batchIterable(null,
+                (s) -> {
+                    ListObjectsRequest lor = ListObjectsRequest.builder()
+                            .namespaceName(namespaceName)
+                            .bucketName(pollId)
+                            .start(s)
+                            .build();
 
-        ListObjects listObjects = objectStorage().listObjects(lor).getListObjects();
-        FlowFuture<Void> deletes = deleteObjects(pollId, ObjectSummary.buildList(listObjects));
+                    return objectStorage().listObjects(lor).getListObjects();
+                },
+                ListObjects::getNextStartWith,
+                (o) -> deleteObjects(pollId, ObjectSummary.buildList(o)),
+                (a, b) -> null);
 
-        String nextStartWith = listObjects.getNextStartWith();
-        if(nextStartWith == null) {
-            return deletes.thenRun(() -> deleteBucket(pollId));
-        } else {
-            return deletePoll(pollId, nextStartWith).thenCompose((ignored) -> deletes);
-        }
     }
 
     private FlowFuture<Void> deleteObjects(String pollId, List<ObjectSummary> objects) {
