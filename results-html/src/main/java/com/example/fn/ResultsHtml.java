@@ -35,7 +35,6 @@ public class ResultsHtml {
         public FreemarkerOutputEvent(VoteTally input) throws IOException {
             this.input = input;
             this.template = templates().getTemplate("results.html");
-
         }
 
         @Override

@@ -1,5 +1,5 @@
 name: tteggel/vote
-version: 0.0.182
+version: 0.0.202
 runtime: java
 cmd: org.tteggel.fn.democracy.Close::main
 build_image: fnproject/fn-java-fdk-build:jdk9-1.0.56

@@ -15,7 +15,7 @@ Create, run and report on a simple poll. An experimental app for [Fn](http://fnp
 ## How it works
 There are 2 types of Object Storage bucket.
   1. The results bucket - a publicly readable bucket where the results of a poll are kept indefinitely.
-  2. A temp bucket for each active poll that contains the ballot paper (HTML), some JSON data about the poll and the vote files. Access to this bucket is controlled by Pre-Authenticated Requests (PARs) that exist only for the duration of the poll.
+  2. A temp bucket for each active poll that contains the vote files. Access to this bucket is controlled by Pre-Authenticated Requests (PARs) that exist only for the duration of the poll.
 
 ### /new
 #### Sample input
@@ -27,17 +27,15 @@ There are 2 types of Object Storage bucket.
     }
    
 #### Overview
-  * Creates a new Object Storage bucket to hold votes and ballot paper.
-  * Create the ballot paper HTML and write it to the poll bucket.
-  * Dump poll data as JSON and write to the poll bucket.
-  * Creates a Pre-Authenticated Request (PAR) against poll bucket for accessing the ballot paper.
-  * Creates a PAR against poll bucket for accessing the JSON.
+  * Creates a new Object Storage bucket to hold votes.
+  * Create the ballot paper HTML and write it to the results bucket.
+  * Dump poll data as JSON and write to the results bucket.
   * Creates a PAR agaist poll bucket for recording a vote.
 
 ### /vote
 #### Overview
-  * Read the PARs from the query string.
-  * Use JSON PARs to load poll data.
+  * Read the PAR from the query string.
+  * Load JSON from results bucket to load poll data.
   * Verify vote against poll data (TODO).
   * Write vote file in poll bucket.
   * Confirm vote by reading back from poll bucket.
@@ -57,8 +55,5 @@ There are 2 types of Object Storage bucket.
   * `fn deploy --all --local`
 
 ## TODO
-  * Pretty the HTML
   * HTML form for /new and /close
   * Doc or terraform for OCI setup
-  
-  

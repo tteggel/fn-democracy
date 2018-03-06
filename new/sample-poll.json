@@ -1,6 +1,7 @@
 {
-    "name": "Do you like marmite?",
-    "description": "Love it or hate it?",
-    "for": "1m",
-    "options": ["Love Marmite!", "Hate Marmite!"]
+    "name": "Do you like Marmite?",
+    "description": "",
+    "for": "2m",
+    "options": ["Love it!",
+                "Hate it!"]
 }

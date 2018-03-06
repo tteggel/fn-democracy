@@ -32,14 +32,8 @@ def main():
     vote_par = create_vote_par(object_storage, data)
 
     create_ballot_json(object_storage, data)
-    ballot_json_par = create_ballot_par(object_storage, "ballot.json", data)
+    create_ballot_html(object_storage, env, data, vote_par)
 
-    create_ballot_html(object_storage, env, data, vote_par, ballot_json_par)
-    ballot_html_par = create_ballot_par(object_storage, "ballot.html", data)
-
-    create_result_html(object_storage, env, data, ballot_html_par)
-
-    print("Ballot: {0}{1}".format(data["oci_url"], ballot_html_par))
     print("Results: {0}".format(data["result_url"]))
 
 def parse_input(object_storage):
@@ -60,8 +54,8 @@ def parse_input(object_storage):
         "compartment_id": os.environ["COMPARTMENT_ID"],
         "results_bucket": os.environ["RESULTS_BUCKET"],
         "namespace_name": object_storage.get_namespace().data,
-        "vote_url": os.environ["FN_REQUEST_URL"].replace("/new", "/vote"),
-        "close_url": os.environ["FN_REQUEST_URL"].replace("/new", "/close")
+        "close_url": os.environ["FN_REQUEST_URL"].replace("/new", "/close"),
+        "vote_url": os.environ["FN_REQUEST_URL"].replace("/new", "/vote")
     }
 
     data["result_url"] = "{0}/n/{1}/b/{2}/o/{3}.html".format(
@@ -91,7 +85,7 @@ def create_vote_par(object_storage, data):
         data["namespace_name"], data["bucket_name"], vote_par_details
     ).data.access_uri
 
-def create_ballot_html(object_storage, env, data, vote_par, json_par):
+def create_ballot_html(object_storage, env, data, vote_par):
     ballot_template = env.get_template("ballot.html")
     ballot_html = ballot_template.render(
         options=data["poll_options"],
@@ -99,44 +93,20 @@ def create_ballot_html(object_storage, env, data, vote_par, json_par):
         description=data["poll_description"],
         name=data["poll_name"],
         vote_url=data["vote_url"],
-        result_url=data["result_url"],
         qrcode=data["qrcode"],
         poll_id=data["poll_id"],
         close_url=data["close_url"],
-        vote_par="{0}{1}".format(data["oci_url"], vote_par),
-        json_par="{0}{1}".format(data["oci_url"], json_par))
+        vote_par="{0}{1}".format(data["oci_url"], vote_par))
 
     object_storage.put_object(
-        data["namespace_name"], data["bucket_name"],
-        "ballot.html", ballot_html,
+        data["namespace_name"], data["results_bucket"],
+        "{0}.html".format(data["poll_id"]), ballot_html,
         content_type="text/html")
 
 def create_ballot_json(object_storage, data):
     object_storage.put_object(
-        data["namespace_name"], data["bucket_name"],
-        "ballot.json", json.dumps(data))
-
-def create_ballot_par(object_storage, object_name, data):
-    ballot_par_details = CreatePreauthenticatedRequestDetails(
-        name="Ballot {0} {1}".format(object_name, data["bucket_name"]),
-        object_name=object_name,
-        access_type="ObjectRead",
-        time_expires=data["poll_expiry"])
-
-    return object_storage.create_preauthenticated_request(
-        data["namespace_name"], data["bucket_name"], ballot_par_details
-    ).data.access_uri
-
-def create_result_html(object_storage, env, data, ballot_par):
-    result_template = env.get_template("result_open.html")
-    result_html = result_template.render(
-        poll_id=data["poll_id"],
-        ballot_url="{0}{1}".format(data["oci_url"], ballot_par))
-
-    object_storage.put_object(
         data["namespace_name"], data["results_bucket"],
-        "{0}.html".format(data["poll_id"]), result_html,
-        content_type="text/html")
+        "{0}.json".format(data["poll_id"]), json.dumps(data))
 
 def create_qrcode(data):
     qr = qrcode.QRCode(

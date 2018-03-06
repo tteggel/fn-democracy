@@ -124,9 +124,8 @@ public class Close implements Serializable {
 
     private List<String> getVotes(String pollId, List<ObjectSummary> objs) {
         List<String> result = new ArrayList<>();
-        System.err.println("Getting votes for " + objs.size() + "ballots.");
+        System.err.println("Getting votes for " + objs.size() + " ballots.");
         for (ObjectSummary s : objs) {
-            if (s.name.equals("ballot.html") || s.name.equals("ballot.json")) { continue; }
             result.add(getVote(pollId, s));
         }
 
@@ -143,7 +142,6 @@ public class Close implements Serializable {
         GetObjectResponse object = objectStorage().getObject(gor);
 
         String result = streamToString(object.getInputStream());
-        System.err.println("Got vote: " + result);
 
         return result;
     }
@@ -252,8 +250,6 @@ public class Close implements Serializable {
 
         return result;
     }
-
-
 
     private String streamToString(InputStream stream) {
         Scanner scanner = new Scanner(stream).useDelimiter("\\A");

@@ -13,11 +13,11 @@
     <p>Click on a button below to register your vote:</p>
     <ul class="list-group">
         {% for option in options %}
-        <li class="list-group-item"><a class="btn btn-primary" href="{{vote_url}}?v={{vote_par | urlencode}}&j={{json_par | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
+        <li class="list-group-item"><a class="btn btn-primary" href="{{vote_url}}?v={{vote_par | urlencode}}&i={{poll_id | urlencode}}&o={{option | urlencode}}">{{option}}</a></li>
         {% endfor %}
     </ul>
     <p>Open until: {{expiry}}</p>
-    <h3>This page is temporary and will vanish once this poll closes. <a href="{{result_url}}">Results will be available from this link and qrcode after poll has been closed</a></h3>
+    <p>This page will be replaced with the poll results once it has been closed.</p>
     <p><img src="{{qrcode}}" class="img-fluid" /></p>
     <p>Click this link to enqueue the close process for this poll (will only succeed after the "Open until:" time above): <a href="{{close_url}}?i={{poll_id}}" class="small">try closing poll {{poll_id}}.</a>
     </div>

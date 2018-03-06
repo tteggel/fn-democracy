@@ -1,5 +1,5 @@
 name: tteggel/results-html
-version: 0.0.43
+version: 0.0.53
 runtime: java
 cmd: com.example.fn.ResultsHtml::generateResults
 build_image: fnproject/fn-java-fdk-build:jdk9-1.0.58
