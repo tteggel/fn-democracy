@@ -27,6 +27,7 @@ public class Close implements Serializable {
     private static final String POLL_NOT_CLOSED_ERROR = "There are still Pre-Authenticated Requests set for this bucket which means that the poll is still open and cannot be counted yet.";
     private String namespaceName;
     private String resultsBucket;
+    private String pollId;
 
     public Close(RuntimeContext ctx) throws IOException {
         namespaceName = objectStorage().getNamespace(
@@ -37,20 +38,20 @@ public class Close implements Serializable {
     }
 
     public String main(String input, InputEvent rawEvent) {
-        String pollId = rawEvent.getQueryParameters().get("i")
+        pollId = rawEvent.getQueryParameters().get("i")
                 .orElseThrow(IllegalArgumentException::new);
 
-        Flows.currentFlow().supply(() -> listPars(pollId))
-        .thenCompose((pars) -> deletePars(pollId, pars))
-        .thenCompose((ignored) -> getTally(pollId))
-        .thenCompose((tally) -> writeResults(pollId, tally))
-        .thenCompose((ignored) -> deletePoll(pollId))
-        .thenRun(() -> deleteBucket(pollId));
+        Flows.currentFlow().supply(this::listPars)
+        .thenCompose(this::deletePars)
+        .thenCompose(this::getTally)
+        .thenCompose(this::writeResults)
+        .thenCompose(this::deletePoll)
+        .thenRun(this::deleteBucket);
 
         return input;
     }
 
-    private List<PreAuthenticatedRequest> listPars(String pollId) {
+    private List<PreAuthenticatedRequest> listPars() {
 
         ListPreauthenticatedRequestsRequest lprr =
             ListPreauthenticatedRequestsRequest.builder()
@@ -64,7 +65,7 @@ public class Close implements Serializable {
                     .getItems());
     }
 
-    private FlowFuture<Void> deletePars(String pollId, List<PreAuthenticatedRequest> pars) {
+    private FlowFuture<Void> deletePars(List<PreAuthenticatedRequest> pars) {
         Flow f = Flows.currentFlow();
         List<FlowFuture<Void>> deletions = new ArrayList<>();
         Date now = new Date();
@@ -95,41 +96,33 @@ public class Close implements Serializable {
         }
     }
 
-    private FlowFuture<VoteTally> getTally(String pollId) {
+    private FlowFuture<VoteTally> getTally(Object ignored) {
 
         return Batch.batchIterable(null,
-                (s) -> {
-                    ListObjectsRequest lor = ListObjectsRequest.builder()
-                            .namespaceName(namespaceName)
-                            .bucketName(pollId)
-                            .start(s)
-                            .build();
-
-                    return objectStorage().listObjects(lor).getListObjects();
-                },
+                this::getVoteFiles,
                 ListObjects::getNextStartWith,
-                (o) -> getVoteTally(pollId, ObjectSummary.buildList(o)),
+                this::getVoteTally,
                 Close::combineTally);
     }
 
-    private FlowFuture<VoteTally> getVoteTally(String pollId, List<ObjectSummary> ballotList) {
-        return Batch.batchList(ballotList,10,
-                (list) -> Flows.currentFlow().supply(() -> getVotes(pollId, list))
+    private FlowFuture<VoteTally> getVoteTally(ListObjects ballotList) {
+        return Batch.batchList(ObjectSummary.buildList(ballotList),10,
+                (list) -> Flows.currentFlow().supply(() -> getVotes(list))
                                              .thenApply(Close::computeTally),
                 Close::combineTally);
     }
 
-    private List<String> getVotes(String pollId, List<ObjectSummary> objs) {
+    private List<String> getVotes(List<ObjectSummary> objs) {
         List<String> result = new ArrayList<>();
         System.err.println("Getting votes for " + objs.size() + " ballots.");
         for (ObjectSummary s : objs) {
-            result.add(getVote(pollId, s));
+            result.add(getVote(s));
         }
 
         return result;
     }
 
-    private String getVote(String pollId, ObjectSummary s) {
+    private String getVote(ObjectSummary s) {
         GetObjectRequest gor = GetObjectRequest.builder()
             .namespaceName(namespaceName)
             .bucketName(pollId)
@@ -138,9 +131,7 @@ public class Close implements Serializable {
 
         GetObjectResponse object = objectStorage().getObject(gor);
 
-        String result = streamToString(object.getInputStream());
-
-        return result;
+        return streamToString(object.getInputStream());
     }
 
     private static VoteTally computeTally(List<String> getVoteList) {
@@ -158,7 +149,7 @@ public class Close implements Serializable {
         return a;
     }
 
-    private FlowFuture<Void> writeResults(String pollId, VoteTally tally)  {
+    private FlowFuture<Void> writeResults(VoteTally tally)  {
         System.err.println("Writing results for poll: " + pollId);
         System.err.println(tally);
 
@@ -179,31 +170,32 @@ public class Close implements Serializable {
         });
     }
 
-    private FlowFuture<Void> deletePoll(String pollId) {
+    private FlowFuture<Void> deletePoll(Object ignored) {
         System.err.println("Deleting votes and ballot for poll: " + pollId);
         return Batch.batchIterable(null,
-                (s) -> {
-                    ListObjectsRequest lor = ListObjectsRequest.builder()
-                            .namespaceName(namespaceName)
-                            .bucketName(pollId)
-                            .start(s)
-                            .build();
-
-                    return objectStorage().listObjects(lor).getListObjects();
-                },
+                this::getVoteFiles,
                 ListObjects::getNextStartWith,
-                (o) -> deleteObjects(pollId, ObjectSummary.buildList(o)),
-                (a, b) -> null);
-
-    }
-
-    private FlowFuture<Void> deleteObjects(String pollId, List<ObjectSummary> objects) {
-        return Batch.batchList(objects, 10,
-                (list) -> Flows.currentFlow().supply(() -> deleteBatch(pollId, list)),
+                this::deleteObjects,
                 (a, b) -> null);
     }
 
-    private void deleteBatch(String pollId, List<ObjectSummary> objects) {
+    private ListObjects getVoteFiles(String start) {
+        ListObjectsRequest lor = ListObjectsRequest.builder()
+                .namespaceName(namespaceName)
+                .bucketName(pollId)
+                .start(start)
+                .build();
+
+        return objectStorage().listObjects(lor).getListObjects();
+    }
+
+    private FlowFuture<Void> deleteObjects(ListObjects objects) {
+        return Batch.batchList(ObjectSummary.buildList(objects), 10,
+                (list) -> Flows.currentFlow().supply(() -> deleteBatch(list)),
+                (a, b) -> null);
+    }
+
+    private void deleteBatch(List<ObjectSummary> objects) {
         for (ObjectSummary s : objects) {
             DeleteObjectRequest dor = DeleteObjectRequest.builder()
                     .namespaceName(namespaceName)
@@ -214,7 +206,7 @@ public class Close implements Serializable {
         }
     }
 
-    private void deleteBucket(String pollId) {
+    private void deleteBucket() {
         DeleteBucketRequest dbr = DeleteBucketRequest.builder()
                 .namespaceName(namespaceName)
                 .bucketName(pollId)
